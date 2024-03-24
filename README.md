@@ -1,13 +1,13 @@
-# [ICRA2024] Language-Conditioned Affordance-Pose Detection in 3D Point Clouds
+# [ICRA 2024] Language-Conditioned Affordance-Pose Detection in 3D Point Clouds
 
-Official code for the ICRA 2024 paper "Language-Conditioned Affordance-Pose Detection in 3D Point Clouds". Our paper is currently available at [this URL](https://arxiv.org/pdf/2309.10911.pdf).
+Official code for the ICRA 2024 paper "Language-Conditioned Affordance-Pose Detection in 3D Point Clouds". Our paper is currently available at [this arXiv](https://arxiv.org/pdf/2309.10911.pdf).
 
-<img src="./assets/intro.jpg" width="500">
+<img src="./assets/intro.png" width="500">
 
 We address the task of language-driven affordance-pose detection in 3D point clouds. Our method simultaneously detect open-vocabulary affordances and
 generate affordance-specific 6-DoF poses.
 
-![image](./assets/method.jpg)
+![image](./assets/method.png)
 We present 3DAPNet, a new method for affordance-pose joint learning. Given the captured 3D point cloud of an object and a set of affordance labels conveyed through natural language texts, our objective is to jointly produce both the relevant affordance regions and the appropriate pose configurations that facilitate the affordances.
 
 
