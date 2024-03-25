@@ -45,7 +45,7 @@ def pose_eval(gt_poses, pred_poses):
     for i in range(len(gt_poses)):
         for affordance in gt_poses[id].keys():
             distances = cdist(gt_poses[id][affordance], pred_poses[id][affordance])
-            rate = np.sum(np.any(distances <= 0.2, axis=1)) / 50
+            rate = np.sum(np.any(distances <= 0.2, axis=1)) / len(gt_poses[i][affordance])
             all_rate.append(rate)
             
             g = gt_poses[id][affordance][:, np.newaxis, :]
@@ -53,4 +53,4 @@ def pose_eval(gt_poses, pred_poses):
             l1_distances = np.sum(np.abs(g - g_pred), axis=2)
             min_distance = np.min(l1_distances)
             all_min_dist.append(min_distance)
-    return np.mean(np.array(all_min_dist)) / 2, np.mean(np.array(all_rate)) / 2
+    return np.mean(np.array(all_min_dist)), np.mean(np.array(all_rate))
