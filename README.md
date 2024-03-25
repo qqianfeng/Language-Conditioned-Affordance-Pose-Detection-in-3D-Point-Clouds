@@ -33,12 +33,24 @@ Current framework supports training on a single GPU. Followings are the steps fo
 		CUDA_VISIBLE_DEVICES=0 python3 train.py --config ./config/detectiondiffusion.py
 
 ## Open-Vocabulary Testing
-Executing the following command for testing of your trained model.
+Executing the following command for testing of your trained model:
 
-        CUDA_VISIBLE_DEVICES=0 python3 detect.py --config <your configuration file> --checkpoint <your  trained model checkpoint> --test_data <test data in the 3DAP dataset>
+                CUDA_VISIBLE_DEVICES=0 python3 detect.py --config <your configuration file> --checkpoint <your  trained model checkpoint> --test_data <test data in the 3DAP dataset>
 
 Note that we current generate 2000 poses for each affordance-object pair.
 The guidance scale is currently set to 0.5. Feel free to change these hyperparameters according to your preference.
+
+The result will be saved to a ```result.pkl``` file.
+
+## Visualization
+To visuaize the result of affordance detection and pose estimation, execute the following script:
+
+                python3 visualize.py --result_file <your result pickle file>
+
+Example of visualization:
+
+<img src="./assets/visualization.png" width="500">
+
 ## Citation
 
 If you find our work useful for your research, please cite:
@@ -50,3 +62,4 @@ If you find our work useful for your research, please cite:
       year      = {2024}
   }
 ```
+Thank you very much.
