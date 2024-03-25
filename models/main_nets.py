@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from .components import TextEncoder, PointNetPlusPlus, GraspNet
+from .components import TextEncoder, PointNetPlusPlus, PoseNet
 
 
 text_encoder = TextEncoder(device=torch.device('cuda'))
@@ -43,7 +43,7 @@ class DetectionDiffusion(nn.Module):
             drop_prob: probability to drop the conditions
         """
         super(DetectionDiffusion, self).__init__()
-        self.graspnet = GraspNet()
+        self.posenet = PoseNet()
         self.pointnetplusplus = PointNetPlusPlus()
         
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -87,13 +87,13 @@ class DetectionDiffusion(nn.Module):
         # dropout context with some probability
         context_mask = torch.bernoulli(torch.zeros(B, 1) + 1 - self.drop_prob).to(self.device)
         
-        # Loss for grasping is MSE between added noise, and our predicted noise
-        grasp_loss = self.loss_mse(noise, self.graspnet(g_t, c, foreground_text_features, context_mask, _ts / self.n_T))
-        return affordance_loss, grasp_loss
+        # Loss for poseing is MSE between added noise, and our predicted noise
+        pose_loss = self.loss_mse(noise, self.posenet(g_t, c, foreground_text_features, context_mask, _ts / self.n_T))
+        return affordance_loss, pose_loss
     
     def detect_and_sample(self, xyz, text, n_sample, guide_w):
         """_summary_
-        Detect affordance for one point cloud and sample [n_sample] grasps that support the 'text' affordance task,
+        Detect affordance for one point cloud and sample [n_sample] poses that support the 'text' affordance task,
         following the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'.
         """
         g_i = torch.randn(n_sample, (7)).to(self.device) # start by sampling from Gaussian noise
@@ -124,7 +124,7 @@ class DetectionDiffusion(nn.Module):
             
             z = torch.randn(n_sample, (7)) if i > 1 else torch.zeros((n_sample, 7))
             z = z.to(self.device)
-            eps = self.graspnet(g_i, c_i, t_i, context_mask, _t_is)
+            eps = self.posenet(g_i, c_i, t_i, context_mask, _t_is)
             eps1 = eps[:n_sample]
             eps2 = eps[n_sample:]
             eps = (1 + guide_w) * eps1 - guide_w * eps2

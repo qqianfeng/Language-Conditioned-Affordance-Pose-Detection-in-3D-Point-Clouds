@@ -88,12 +88,12 @@ class PointNetPlusPlus(nn.Module):
         return l0_points, c
 
 
-class GraspNet(nn.Module):
+class PoseNet(nn.Module):
     """_summary_
-    ContextGraspNet class. This class is for a denoising step in the diffusion.
+    ContextPoseNet class. This class is for a denoising step in the diffusion.
     """
     def __init__(self):
-        super(GraspNet, self).__init__()
+        super(PoseNet, self).__init__()
         self.cloud_net0 = nn.Sequential(
             nn.Linear(1024, 512),
             nn.GroupNorm(8, 512),
@@ -218,7 +218,7 @@ class GraspNet(nn.Module):
         """_summary_
 
         Args:
-            g: grasp representations, size [B, 7]
+            g: pose representations, size [B, 7]
             c: point cloud representations, size [B, 1024]
             t: affordance texts, size [B, 512]
             context_mask: masks {0, 1} for the contexts, size [B, 1]
