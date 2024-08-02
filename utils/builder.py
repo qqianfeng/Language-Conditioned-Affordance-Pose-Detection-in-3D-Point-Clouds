@@ -1,6 +1,6 @@
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR, LambdaLR, MultiStepLR
-from dataset import *
+from dataset import FFHGeneratorDataset
 from models import *
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Adam
@@ -53,31 +53,42 @@ def build_model(cfg):
         raise ValueError("Configuration does not have model config!")
 
 
-def build_dataset(cfg):
-    """_summary_
-    Function to build the dataset
-    """
-    if hasattr(cfg, 'data'):
-        data_info = cfg.data
-        data_dir = data_info.data_dir
-        train_set = _3DAPDataset(data_dir, mode='train')
-        test_set = _3DAPDataset(data_dir, mode='test')
-        dataset_dict = dict(
-            train_set=train_set,
-            test_set=test_set
-        )
-        return dataset_dict
-    else:
-        raise ValueError("Configuration does not have data config!")
+# def build_dataset(cfg):
+#     """_summary_
+#     Function to build the dataset
+#     """
+#     if hasattr(cfg, 'data'):
+#         data_info = cfg.data
+#         data_dir = data_info.data_dir
+#         ffh_datamodule = FFHDataModule(cfg)
+#         train_set = ffh_datamodule.train_dataloader
+#         test_set = ffh_datamodule.val_dataloader
+#         dataset_dict = dict(
+#             train_set=train_set,
+#             test_set=test_set
+#         )
+#         return dataset_dict
+#     else:
+#         raise ValueError("Configuration does not have data config!")
 
 
-def build_loader(cfg, dataset_dict):
+def build_loader(cfg):
     """_summary_
     Function to build the loader
     """
-    train_set = dataset_dict["train_set"]
-    train_loader = DataLoader(train_set, batch_size=cfg.training_cfg.batch_size,
-                              shuffle=True, drop_last=False, num_workers=8)
+    dset_gen = FFHGeneratorDataset(cfg,eval=False)
+    train_loader = torch.utils.data.DataLoader(dset_gen,
+                                                batch_size=cfg.TRAIN.BATCH_SIZE,
+                                                shuffle=True,
+                                                drop_last=True,
+                                                num_workers=cfg.GENERAL.NUM_WORKERS)
+
+
+    # test_loader = ffh_datamodule.val_dataloader
+
+    # train_set = dataset_dict["train_set"]
+    # train_loader = DataLoader(train_set, batch_size=cfg.training_cfg.batch_size,
+    #                           shuffle=True, drop_last=False, num_workers=8)
     loader_dict = dict(
         train_loader=train_loader,
     )

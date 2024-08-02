@@ -17,7 +17,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     cfg = Config.fromfile(args.config)
-        
+
     logger = IOStream(opj(cfg.log_dir, 'run.log'))
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
     num_gpu = len(cfg.training_cfg.gpu.split(','))      # number of GPUs to use
@@ -29,10 +29,10 @@ if __name__ == "__main__":
 
     print("Training from scratch!")
 
-    dataset_dict = build_dataset(cfg)       # build the dataset
-    loader_dict = build_loader(cfg, dataset_dict)       # build the loader
+    # dataset_dict = build_dataset(cfg)       # build the dataset
+    loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
     optim_dict = build_optimizer(cfg, model)        # build the optimizer
-    
+
     # construct the training process
     training = dict(
         model=model,
