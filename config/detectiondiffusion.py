@@ -47,5 +47,5 @@ training_cfg = dict(
 )
 
 data = dict(
-    data_dir="dataset path",
+    data_dir="/home/qian.feng/data/language-conditioned-affordance-pose-detection",
 )
