@@ -42,7 +42,7 @@ def build_model(cfg):
             betas = model_info.get('betas', [1e-4, 0.02])
             n_T = model_info.get('n_T', 1000)
             drop_prob = model_info.get('drop_prob', 0.1)
-            model = model_cls(betas, n_T, device, background_text, drop_prob)
+            model = model_cls(betas, n_T, device, background_text, drop_prob,cfg.dataset.use_bps)
         else:
             raise ValueError("The model name does not exist!")
         if weights_init != None:
@@ -78,10 +78,10 @@ def build_loader(cfg):
     """
     dset_gen = FFHGeneratorDataset(cfg,eval=False)
     train_loader = torch.utils.data.DataLoader(dset_gen,
-                                                batch_size=cfg.TRAIN.BATCH_SIZE,
+                                                batch_size=cfg.training_cfg.batch_size,
                                                 shuffle=True,
                                                 drop_last=True,
-                                                num_workers=cfg.GENERAL.NUM_WORKERS)
+                                                num_workers=cfg.training_cfg.num_worker)
 
 
     # test_loader = ffh_datamodule.val_dataloader

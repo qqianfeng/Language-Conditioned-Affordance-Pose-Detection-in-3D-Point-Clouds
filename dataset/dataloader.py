@@ -11,7 +11,7 @@ import transforms3d
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..'))
 from utils.grasp_data_handler import GraspDataHandlerVae
 from utils import utils#, visualization
-from configs import get_config
+from config import get_config
 
 
 class FFHGeneratorDataset(data.Dataset):
@@ -21,16 +21,17 @@ class FFHGeneratorDataset(data.Dataset):
         else:
             ds_name = "train"
 
+        self.cfg = cfg
         self.dtype = dtype
 
-        self.ds_path = os.path.join(cfg.DATASETS.PATH, ds_name)
+        self.ds_path = os.path.join(cfg.dataset.PATH, ds_name)
         self.objs_names = self.get_objs_names(self.ds_path)
         self.objs_folder = os.path.join(self.ds_path, 'bps')
-        self.grasp_data_path = os.path.join(cfg.DATASETS.PATH, cfg.DATASETS.GRASP_DATA_NANE)
-        self.gazebo_obj_path = cfg.DATASETS.GAZEBO_OBJ_PATH
+        self.grasp_data_path = os.path.join(cfg.dataset.PATH, cfg.dataset.GRASP_DATA_NANE)
+        self.gazebo_obj_path = cfg.dataset.GAZEBO_OBJ_PATH
 
         self.grasp_data_handler = GraspDataHandlerVae(self.grasp_data_path)
-        df = pd.read_csv(os.path.join(cfg.DATASETS.PATH, 'metadata.csv'))
+        df = pd.read_csv(os.path.join(cfg.dataset.PATH, 'metadata.csv'))
         df_name_pos = df[df[ds_name] == 'X'].loc[:, ['Unnamed: 0', 'positive']]
         self.num_success_per_object = dict(
             zip(df_name_pos.iloc[:, 0], df_name_pos.iloc[:, 1].astype('int64')))
@@ -38,16 +39,15 @@ class FFHGeneratorDataset(data.Dataset):
         self.num_failure_per_object = dict(
             zip(df_name_neg.iloc[:, 0], df_name_neg.iloc[:, 1].astype('int64')))
 
-        if cfg['DATASETS']['POSITIVE_ONLY']:
+        if self.cfg.dataset.POSITIVE_ONLY:
             self.bps_paths, self.grasp_idxs = self.get_all_bps_paths_and_grasp_idxs(
                 self.objs_folder, self.num_success_per_object)
-        elif cfg['DATASETS']['NEGATIVE_ONLY']:
+        elif self.cfg.dataset.NEGATIVE_ONLY:
             self.bps_paths, self.grasp_idxs = self.get_all_bps_paths_and_grasp_idxs(
                 self.objs_folder, self.num_failure_per_object)
         else:
             raise KeyError("Wrong flag set for nagetiva and positive grasps!")
 
-        self.cfg = cfg
         self.is_debug = False
         if self.is_debug:
             print("The size in KB is: ", sys.getsizeof(self.bps_paths) / 1000)
@@ -151,10 +151,10 @@ class FFHGeneratorDataset(data.Dataset):
         bps_obj = np.load(bps_path)
 
         # Read in a grasp for a given object (in mesh frame)
-        if self.cfg['DATASETS']['POSITIVE_ONLY']:
+        if self.cfg.dataset.POSITIVE_ONLY:
             palm_pose, joint_conf, _ = self.grasp_data_handler.get_single_successful_grasp(obj_name,
                                                                                     random=True)
-        elif self.cfg['DATASETS']['NEGATIVE_ONLY']:
+        elif self.cfg.dataset.NEGATIVE_ONLY:
             palm_pose, joint_conf, world_T_mesh = self.grasp_data_handler.get_single_grasp_of_outcome(
                 obj_name, outcome='negative', random=True)
 
@@ -188,10 +188,10 @@ class FFHGeneratorDataset(data.Dataset):
 
         alpha, beta, gamma = transforms3d.euler.mat2euler(palm_rot_matrix)
 
-        # Normalize angles [-pi, pi], [-pi/2,pi/2], [-pi, pi] to [0,1]
-        alpha = (alpha + np.pi) / 2 / np.pi
-        beta = (beta + np.pi) / 2 / np.pi
-        gamma = (gamma + np.pi) / 2 / np.pi
+        # # Normalize angles [-pi, pi], [-pi/2,pi/2], [-pi, pi] to [0,1]
+        # alpha = (alpha + np.pi) / 2 / np.pi
+        # beta = (beta + np.pi) / 2 / np.pi
+        # gamma = (gamma + np.pi) / 2 / np.pi
 
         # Normalize transl if you use positional encoding
         # [ 0.20864879992399918, -0.21115427946708953]
@@ -211,38 +211,41 @@ class FFHGeneratorDataset(data.Dataset):
 
         # If we want to evaluate, also return the pcd path to load from for vis
         # if self.cfg["ds_name"] == 'eval':
-        data_out['pcd_path'] = bps_path.replace('bps', 'pcd').replace('npy', 'pcd')
+        pcd_path = bps_path.replace('bps', 'pcd').replace('npy', 'pcd')
+        pcd_path = pcd_path.replace('_pcd','_dspcd')
+        pcd = o3d.io.read_point_cloud(pcd_path)
+        data_out['pcd_array'] = np.asarray(pcd.points)
         data_out['obj_name'] = obj_name
 
         # affpose paper
         # return data_dict['shape_id'], data_dict['semantic class'], data_dict['coordinate'], data_dict['affordance'], \
         #     data_dict['affordance_label'], data_dict['rotation'], data_dict['translation']
 
-        return data_out
+        return data_out['rot_matrix'], data_out['angle_vector'], data_out['transl'], data_out['joint_conf'], data_out['bps_object'], data_out['pcd_array'], data_out['obj_name']
 
     def __len__(self):
         #len of dataset is number of bps per object x num_success_grasps
         return len(self.bps_paths)
 
 
-if __name__ == '__main__':
-    path = os.path.dirname(os.path.abspath(__file__))
-    BASE_PATH = os.path.split(os.path.split(path)[0])[0]
+# if __name__ == '__main__':
+#     path = os.path.dirname(os.path.abspath(__file__))
+#     BASE_PATH = os.path.split(os.path.split(path)[0])[0]
 
-    path = os.path.join(BASE_PATH, "ffhflow/configs/prohmr.yaml")
-    cfg = get_config(path)
-    gds = FFHGeneratorDataset(cfg)
+#     path = os.path.join(BASE_PATH, "ffhflow/configs/prohmr.yaml")
+#     cfg = get_config(path)
+#     gds = FFHGeneratorDataset(cfg)
 
-    # while True:
-    #     i = np.random.randint(0, gds.__len__())
-    #     gds.__getitem__(i)
+#     # while True:
+#     #     i = np.random.randint(0, gds.__len__())
+#     #     gds.__getitem__(i)
 
-    # save angle vector npy
-    print(len(gds))
-    transl_vectors = np.zeros((len(gds),3))
-    for i in range(len(gds)):
-        # i = np.random.randint(0, gds.__len__())
-        data = gds.__getitem__(i)
-        transl_vectors[i] = data['transl']
+#     # save angle vector npy
+#     print(len(gds))
+#     transl_vectors = np.zeros((len(gds),3))
+#     for i in range(len(gds)):
+#         # i = np.random.randint(0, gds.__len__())
+#         data = gds.__getitem__(i)
+#         transl_vectors[i] = data['transl']
 
-    np.save('transl_vectors.npy',transl_vectors)
+#     np.save('transl_vectors.npy',transl_vectors)

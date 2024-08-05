@@ -27,7 +27,7 @@ class SinusoidalPositionEmbeddings(nn.Module):
 
     def __len__(self):
         return self.dim
-    
+
 
 class TextEncoder(nn.Module):
     """_summary_
@@ -62,7 +62,7 @@ class PointNetPlusPlus(nn.Module):
         self.fp3 = PointNetFeaturePropagation(in_channel=1536, mlp=[256, 256])
         self.fp2 = PointNetFeaturePropagation(in_channel=576, mlp=[256, 128])
         self.fp1 = PointNetFeaturePropagation(in_channel=134, mlp=[128, 128])
-        
+
         self.conv1 = nn.Conv1d(128, 512, 1)
         self.bn1 = nn.BatchNorm1d(512)
 
@@ -78,7 +78,7 @@ class PointNetPlusPlus(nn.Module):
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
         c = l3_points.squeeze()
-        
+
         # Feature Propagation layers
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
@@ -86,6 +86,82 @@ class PointNetPlusPlus(nn.Module):
             [l0_xyz, l0_points], 1), l1_points)
         l0_points = self.bn1(self.conv1(l0_points))
         return l0_points, c
+
+class ResBlock(nn.Module):
+    def __init__(self, Fin, Fout, n_neurons=256):
+        super(ResBlock, self).__init__()
+        self.Fin = Fin
+        self.Fout = Fout
+
+        self.fc1 = nn.Linear(Fin, n_neurons)
+        self.bn1 = nn.BatchNorm1d(n_neurons)
+
+        self.fc2 = nn.Linear(n_neurons, Fout)
+        self.bn2 = nn.BatchNorm1d(Fout)
+
+        if Fin != Fout:
+            self.fc3 = nn.Linear(Fin, Fout)
+
+        self.ll = nn.LeakyReLU(negative_slope=0.2)
+
+    def forward(self, x, final_ll=True):
+        if self.Fin == self.Fout:
+            Xin = x
+        else:
+            Xin = self.fc3(x)
+            Xin = self.ll(Xin)
+
+        Xout = self.fc1(x)
+        Xout = self.bn1(Xout)
+        Xout = self.ll(Xout)
+
+        Xout = self.fc2(Xout)
+        Xout = self.bn2(Xout)
+        Xout = Xin + Xout
+
+        if final_ll:
+            return self.ll(Xout)
+        return Xout
+
+
+class BPSMLP(nn.Module):
+    def __init__(self,
+                 n_neurons=512,
+                 in_bps=4096,
+                 dtype=torch.float64,
+                 **kwargs):
+        super().__init__()
+
+        self.bn1 = nn.BatchNorm1d(in_bps)
+        self.rb1 = ResBlock(in_bps, n_neurons)
+        self.rb2 = ResBlock(in_bps + n_neurons, n_neurons)
+        self.rb3 = ResBlock(in_bps + n_neurons, 512)
+
+        self.dout = nn.Dropout(0.3)
+        # self.sigmoid = nn.Sigmoid()
+
+        self.dtype = dtype
+
+
+    def forward(self, data, return_mean_var=False):
+        """Run one forward iteration to evaluate the success probability of given grasps
+
+        Args:
+            data (dict): keys should be rot_matrix, transl, joint_conf, bps_object,
+
+        Returns:
+            p_success (tensor, batch_size*1): Probability that a grasp will be successful.
+        """
+        X = data
+
+        X0 = self.bn1(X)
+        X = self.rb1(X0)
+        X = self.dout(X)
+        X = self.rb2(torch.cat([X, X0], dim=1))
+        X = self.dout(X)
+        X = self.rb3(torch.cat([X, X0], dim=1))
+
+        return X
 
 
 class PoseNet(nn.Module):
@@ -135,7 +211,7 @@ class PoseNet(nn.Module):
             nn.GELU(),
             nn.Linear(2, 2)
         )
-        
+
         self.text_net0 = nn.Sequential(
             nn.Linear(512, 256),
             nn.GroupNorm(8, 256),
@@ -177,11 +253,14 @@ class PoseNet(nn.Module):
             nn.GELU(),
             nn.Linear(2, 2)
         )
-        
-        self.time_net3 = SinusoidalPositionEmbeddings(dim=6)
-        self.time_net2 = SinusoidalPositionEmbeddings(dim=4)
-        self.time_net1 = SinusoidalPositionEmbeddings(dim=2)
-        
+
+        # self.time_net3 = SinusoidalPositionEmbeddings(dim=6)
+        # self.time_net2 = SinusoidalPositionEmbeddings(dim=4)
+        # self.time_net1 = SinusoidalPositionEmbeddings(dim=2)
+        self.time_net3 = SinusoidalPositionEmbeddings(dim=12)
+        self.time_net2 = SinusoidalPositionEmbeddings(dim=8)
+        self.time_net1 = SinusoidalPositionEmbeddings(dim=4)
+
         self.down1 = nn.Sequential(
             nn.Linear(7, 6),
             nn.GELU(),
@@ -197,7 +276,7 @@ class PoseNet(nn.Module):
             nn.GELU(),
             nn.Linear(2, 2)
         )
-        
+
         self.up1 = nn.Sequential(
             nn.Linear(2 + 4, 4),
             nn.GELU(),
@@ -213,8 +292,8 @@ class PoseNet(nn.Module):
             nn.GELU(),
             nn.Linear(7, 7)
         )
-        
-    def forward(self, g, c, t, context_mask, _t):
+
+    def forward_affordance(self, g, c, t, context_mask, _t):
         """_summary_
 
         Args:
@@ -229,39 +308,85 @@ class PoseNet(nn.Module):
         c1 = self.cloud_net1(c0)
         c2 = self.cloud_net2(c0)
         c3 = self.cloud_net3(c0)
-        
+
         t = t * context_mask
         t0 = self.text_net0(t)
         t1 = self.text_net1(t0)
         t2 = self.text_net2(t0)
         t3 = self.text_net3(t0)
-        
+
         _t0 = _t.unsqueeze(1)
         _t1 = self.time_net1(_t0)
         _t2 = self.time_net2(_t0)
         _t3 = self.time_net3(_t0)
-        
+
         g = g.float()
         g_down1 = self.down1(g) # 6
         g_down2 = self.down2(g_down1) # 4
         g_down3 = self.down3(g_down2) # 2
-        
+
         c1_influence = self.cloud_influence_net1(torch.cat((c1, g, _t1), dim=1))
         t1_influence = self.text_influence_net1(torch.cat((t1, g, _t1), dim=1))
-        influences1 = F.softmax(torch.cat((c1_influence.unsqueeze(1), t1_influence.unsqueeze(1)), dim=1), dim=1) 
+        influences1 = F.softmax(torch.cat((c1_influence.unsqueeze(1), t1_influence.unsqueeze(1)), dim=1), dim=1)
         ct1 = (c1 * influences1[:, 0, :] + t1 * influences1[:, 1, :])
         up1 = self.up1(torch.cat((g_down3 * ct1 + _t1, g_down2), dim=1))
-        
+
         c2_influence = self.cloud_influence_net2(torch.cat((c2, g, _t2), dim=1))
         t2_influence = self.text_influence_net2(torch.cat((t2, g, _t2), dim=1))
-        influences2 = F.softmax(torch.cat((c2_influence.unsqueeze(1), t2_influence.unsqueeze(1)), dim=1), dim=1) 
+        influences2 = F.softmax(torch.cat((c2_influence.unsqueeze(1), t2_influence.unsqueeze(1)), dim=1), dim=1)
         ct2 = (c2 * influences2[:, 0, :] + t2 * influences2[:, 1, :])
         up2 = self.up2(torch.cat((up1 * ct2 + _t2, g_down1), dim=1))
-        
+
         c3_influence = self.cloud_influence_net3(torch.cat((c3, g, _t3), dim=1))
         t3_influence = self.text_influence_net3(torch.cat((t3, g, _t3), dim=1))
-        influences3 = F.softmax(torch.cat((c3_influence.unsqueeze(1), t3_influence.unsqueeze(1)), dim=1), dim=1) 
+        influences3 = F.softmax(torch.cat((c3_influence.unsqueeze(1), t3_influence.unsqueeze(1)), dim=1), dim=1)
         ct3 = (c3 * influences3[:, 0, :] + t3 * influences3[:, 1, :])
         up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
-        
+
+        return up3
+
+    def forward(self, g, c, context_mask, _t):
+        """_summary_
+
+        Args:
+            g: pose representations, size [B, 7]
+            c: point cloud representations, size [B, 1024]
+            # t: affordance texts, size [B, 512]
+            # context_mask: masks {0, 1} for the contexts, size [B, 1]
+            _t is for the timesteps, size [B,]
+        """
+        c = c * context_mask
+        c0 = self.cloud_net0(c)
+        c1 = self.cloud_net1(c0)
+        c2 = self.cloud_net2(c0)
+        c3 = self.cloud_net3(c0)
+
+        _t0 = _t.unsqueeze(1)
+        _t1 = self.time_net1(_t0)
+        _t2 = self.time_net2(_t0)
+        _t3 = self.time_net3(_t0)
+
+        g = g.float()
+        g_down1 = self.down1(g) # 6
+        g_down2 = self.down2(g_down1) # 4
+        g_down3 = self.down3(g_down2) # 2
+
+        c1_influence = self.cloud_influence_net1(torch.cat((c1, g, _t1), dim=1))
+        # t1_influence = self.text_influence_net1(torch.cat((t1, g, _t1), dim=1))
+        # influences1 = F.softmax(torch.cat((c1_influence.unsqueeze(1), t1_influence.unsqueeze(1)), dim=1), dim=1)
+        # ct1 = (c1 * influences1[:, 0, :] + t1 * influences1[:, 1, :])
+        up1 = self.up1(torch.cat((g_down3 * ct1 + _t1, g_down2), dim=1))
+
+        c2_influence = self.cloud_influence_net2(torch.cat((c2, g, _t2), dim=1))
+        t2_influence = self.text_influence_net2(torch.cat((t2, g, _t2), dim=1))
+        influences2 = F.softmax(torch.cat((c2_influence.unsqueeze(1), t2_influence.unsqueeze(1)), dim=1), dim=1)
+        ct2 = (c2 * influences2[:, 0, :] + t2 * influences2[:, 1, :])
+        up2 = self.up2(torch.cat((up1 * ct2 + _t2, g_down1), dim=1))
+
+        c3_influence = self.cloud_influence_net3(torch.cat((c3, g, _t3), dim=1))
+        t3_influence = self.text_influence_net3(torch.cat((t3, g, _t3), dim=1))
+        influences3 = F.softmax(torch.cat((c3_influence.unsqueeze(1), t3_influence.unsqueeze(1)), dim=1), dim=1)
+        ct3 = (c3 * influences3[:, 0, :] + t3 * influences3[:, 1, :])
+        up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
+
         return up3

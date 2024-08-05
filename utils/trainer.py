@@ -13,7 +13,7 @@ class Trainer(object):
         self.cfg = cfg
         self.logger = running['logger']
         self.model = running["model"]
-        self.dataset_dict = running["dataset_dict"]
+        # self.dataset_dict = running["dataset_dict"]
         self.loader_dict = running["loader_dict"]
         self.train_loader = self.loader_dict.get("train_loader", None)
         self.optimizer_dict = running["optim_dict"]
@@ -21,37 +21,45 @@ class Trainer(object):
         self.scheduler = self.optimizer_dict.get("scheduler", None)
         self.epoch = 0
         self.bn_momentum = self.cfg.training_cfg.get('bn_momentum', None)
-              
+
+        self.use_bps = cfg.dataset.use_bps
+
     def train(self):
         self.model.train()
         self.logger.cprint("Epoch(%d) begin training........" % self.epoch)
         pbar = tqdm(self.train_loader)
-        for _, _, xyz, text, affordance_label, rotation, translation in pbar:
-            self.optimizer.zero_grad()
-            xyz = xyz.float()
-            rotation = rotation.float()
-            translation = translation.float()
-            affordance_label = affordance_label.squeeze().long()
+        # for _, _, xyz, text, affordance_label, rotation, translation in pbar:
+        for rot_matrix, angle_vector, transl, joint_conf,bps_object,pcd_array,obj_name in pbar:
+            if self.use_bps:
+                xyz = bps_object.float()
+            else:
+                xyz = pcd_array.float()
 
+            rotation = angle_vector.float()
+            translation = transl.float()
+            # affordance_label = affordance_label.squeeze().long()
+            translation = translation.view(self.cfg.training_cfg.batch_size,3)
             g = torch.cat((rotation, translation), dim=1)
             xyz = xyz.to(DEVICE)
-            affordance_label = affordance_label.to(DEVICE)
+            # affordance_label = affordance_label.to(DEVICE)
             g = g.to(DEVICE)
-            
-            affordance_loss, pose_loss = self.model(xyz, text, affordance_label, g)
+
+            # affordance_loss, pose_loss = self.model(xyz, text, affordance_label, g)
+            affordance_loss, pose_loss = self.model(xyz, g)
+
             loss = affordance_loss + pose_loss
             loss.backward()
-            
+
             affordance_l = affordance_loss.item()
             pose_l = pose_loss.item()
             pbar.set_description(f'Affordance loss: {affordance_l:.5f}, Pose loss: {pose_l:.5f}')
             self.optimizer.step()
-            
+
         if self.scheduler != None:
-            self.scheduler.step()   
+            self.scheduler.step()
         if self.bn_momentum != None:
             self.model.apply(lambda x: self.bn_momentum(x, self.epoch))
-        
+
         outstr = f"\nEpoch {self.epoch}, Last Affordance loss: {affordance_l:.5f}, Last Pose loss: {pose_l:.5f}"
         self.logger.cprint(outstr)
         print('Saving checkpoint')
@@ -60,14 +68,14 @@ class Trainer(object):
 
     def val(self):
        raise NotImplementedError
-       
+
     def test(self):
         raise NotImplementedError
 
     def run(self):
         EPOCH = self.cfg.training_cfg.epoch
         workflow = self.cfg.training_cfg.workflow
-        
+
         while self.epoch < EPOCH:
             for key, running_epoch in workflow.items():
                 epoch_runner = getattr(self, key)

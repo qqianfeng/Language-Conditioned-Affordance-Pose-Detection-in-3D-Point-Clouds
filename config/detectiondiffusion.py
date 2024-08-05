@@ -11,6 +11,16 @@ try:
 except:
     print('Logging Dir is already existed!')
 
+dataset = dict(
+  PATH="/data/net/userstore/qf/hithand_data/data/ffhnet-data", #/data/hdd1/qf/hithand_data/ffhnet-data
+  GAZEBO_OBJ_PATH= "/data/net/userstore/qf/hithand_data/data/gazebo-objects/objects_gazebo", # /home/yb/Projects/gazebo-objects/objects_gazebo/
+  GRASP_DATA_NANE= "grasp_data_all.h5",
+  POSITIVE_ONLY= True,
+  NEGATIVE_ONLY= False,
+  POS_AND_NEG_GRASP= False,
+  use_bps=False,
+)
+
 scheduler = dict(
     type='lr_lambda',
     lr_lambda=PN2_Scheduler(init_lr=0.001, step=20,
@@ -36,6 +46,7 @@ model = dict(
 )
 
 training_cfg = dict(
+    num_worker=1,
     model=model,
     batch_size=32,
     epoch=200,

@@ -9,7 +9,7 @@ import torch
 # Argument Parser
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a model")
-    parser.add_argument("--config", help="train config file path")
+    parser.add_argument("--config", default="./config/detectiondiffusion.py", help="train config file path")
     args = parser.parse_args()
     return args
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # construct the training process
     training = dict(
         model=model,
-        dataset_dict=dataset_dict,
+        # dataset_dict=dataset_dict,
         loader_dict=loader_dict,
         optim_dict=optim_dict,
         logger=logger
