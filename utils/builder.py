@@ -43,6 +43,7 @@ def build_model(cfg):
             n_T = model_info.get('n_T', 1000)
             drop_prob = model_info.get('drop_prob', 0.1)
             model = model_cls(betas, n_T, device, background_text, drop_prob)
+        else:
             raise ValueError("The model name does not exist!")
         if weights_init != None:
             init_fn = init_pool[weights_init]
