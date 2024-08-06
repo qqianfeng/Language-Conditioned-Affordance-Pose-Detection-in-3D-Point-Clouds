@@ -5,6 +5,7 @@ import random
 
 # newly imported
 import transforms3d as tf
+import torch
 
 # newly imported
 HAND_CFG = {
@@ -79,6 +80,84 @@ def hom_matrix_from_pos_quat_list(rot_quat_list):
     T[:3, :3] = rot
     T[:3, 3] = p
     return T
+
+
+
+def full_joint_conf_from_vae_joint_conf(vae_joint_conf):
+    """Takes in the 15 dimensional joint conf output from VAE and repeats the 3*N-th dimension to turn dim 15 into dim 20.
+
+    Args:
+        vae_joint_conf (np array): dim(vae_joint_conf.position) = 15
+
+    Returns:
+        full_joint_conf (JointState): Full joint state with dim(full_joint_conf.position) = 20
+    """
+    # for split to run we have to have even joint dim so 15->16
+    if vae_joint_conf.shape[0] == 16:
+        vae_joint_conf = vae_joint_conf[:15]
+    full_joint_pos = np.zeros(20)
+    ix_full_joint_pos = 0
+    for i in range(vae_joint_conf.shape[0]):
+        if (i + 1) % 3 == 0:
+            full_joint_pos[ix_full_joint_pos] = vae_joint_conf[i]
+            full_joint_pos[ix_full_joint_pos + 1] = vae_joint_conf[i]
+            ix_full_joint_pos += 2
+        else:
+            full_joint_pos[ix_full_joint_pos] = vae_joint_conf[i]
+            ix_full_joint_pos += 1
+
+    return full_joint_pos
+
+
+def convert_output_to_grasp_mat(samples, return_arr=True):
+    """_summary_
+
+    Args:
+        samples (dict): pred_angles, pred_pose_transl can be of two types.
+        One is after positional encoding, one is original format (mat or vec)
+        but ['rot_matrix'] and ['transl'] must be mat or vec for same interface.
+        return_arr (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
+    num_samples = samples['pred_angles'].shape[0]
+    pred_rot_matrix = np.zeros((num_samples,3,3))
+    pred_transl_all = np.zeros((num_samples,3))
+
+    for idx in range(num_samples):
+        pred_angles = samples['pred_angles'][idx].cpu().data.numpy()
+        # rescale rotation prediction back
+        pred_angles = pred_angles * 2 * np.pi - np.pi
+        pred_angles[pred_angles < -np.pi] += 2 * np.pi
+
+        alpha, beta, gamma = pred_angles
+        mat = tf.euler.euler2mat(alpha, beta, gamma)
+        pred_rot_matrix[idx] = mat
+
+        # rescale transl prediction back
+
+        palm_transl_min = -0.3150945039775345
+        palm_transl_max = 0.2628828995958964
+        pred_transl = samples['pred_pose_transl'][idx].cpu().data.numpy()
+        value_range = palm_transl_max - palm_transl_min
+        pred_transl = pred_transl * (palm_transl_max - palm_transl_min) + palm_transl_min
+
+        pred_transl[pred_transl < -value_range / 2] += value_range
+        pred_transl[pred_transl > value_range / 2] -= value_range
+        pred_transl_all[idx] = pred_transl
+
+    if return_arr:
+        samples['rot_matrix'] = pred_rot_matrix
+        samples['transl'] = pred_transl_all
+        samples['joint_conf'] = samples['pred_joint_conf'].cpu().data.numpy()
+
+    else:
+        samples['rot_matrix'] = torch.from_numpy(pred_rot_matrix).cuda()
+        samples['transl'] = torch.from_numpy(pred_transl_all).cuda()
+        samples['joint_conf'] = samples['pred_joint_conf']
+
+    return samples
 
 class IOStream():
     def __init__(self, path):

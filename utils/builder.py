@@ -83,12 +83,6 @@ def build_loader(cfg):
                                                 drop_last=True,
                                                 num_workers=cfg.training_cfg.num_worker)
 
-
-    # test_loader = ffh_datamodule.val_dataloader
-
-    # train_set = dataset_dict["train_set"]
-    # train_loader = DataLoader(train_set, batch_size=cfg.training_cfg.batch_size,
-    #                           shuffle=True, drop_last=False, num_workers=8)
     loader_dict = dict(
         train_loader=train_loader,
     )

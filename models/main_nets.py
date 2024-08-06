@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from .components import TextEncoder, PointNetPlusPlus, PoseNet, BPSMLP
-
+from utils.utils import *
 
 text_encoder = TextEncoder(device=torch.device('cuda'))
 
@@ -203,44 +203,48 @@ class DetectionDiffusion(nn.Module):
         pose_loss = self.loss_mse(noise, self.posenet(g_t, c, context_mask, _ts / self.n_T))
         return pose_loss
 
-    def detect_and_sample(self, xyz, text, n_sample, guide_w):
+    def detect_and_sample(self, xyz, n_sample, guide_w):
         """_summary_
         Detect affordance for one point cloud and sample [n_sample] poses that support the 'text' affordance task,
         following the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'.
         """
-        g_i = torch.randn(n_sample, (7)).to(self.device) # start by sampling from Gaussian noise
-        point_features, c = self.pointnetplusplus(xyz) # point_features size [1, 512, 2048], c size [1, 1024]
-        foreground_text_features = text_encoder(text)   # size [1, 512]
-        background_text_features = text_encoder([self.background_text] * 1)
-        text_features = torch.cat((background_text_features.unsqueeze(1), \
-            foreground_text_features.unsqueeze(1)), dim=1)  # size [B, 2, 512]
+        g_i = torch.randn(n_sample, (6)).to(self.device) # start by sampling from Gaussian noise
+        if self.use_bps:
+            c = self.bpsmlp(xyz)
+        else:
+            point_features, c = self.pointnetplusplus(xyz) # point_features' size [B, 512, 2048], c'size [B, 1024] max pool point feature
 
-        affordance_prediction = self.logit_scale * torch.einsum('bij,bjk->bik', text_features, point_features) \
-            / (torch.einsum('bij,bjk->bik', torch.norm(text_features, dim=2, keepdim=True), \
-                torch.norm(point_features, dim=1, keepdim=True)))   # size [1, 2, 2048]
-
-        affordance_prediction = F.log_softmax(affordance_prediction, dim=1) # .cpu().numpy()
         c_i = c.repeat(n_sample, 1)
-        t_i = foreground_text_features.repeat(n_sample, 1)
         context_mask = torch.ones((n_sample, 1)).float().to(self.device)
 
         # Double the batch
         c_i = c_i.repeat(2, 1)
-        t_i = t_i.repeat(2, 1)
         context_mask = context_mask.repeat(2, 1)
         context_mask[n_sample:] = 0.    # make second half of the back context-free
 
         for i in range(self.n_T, 0, -1):
+            if i < self.n_T//3:
+                print('1')
+            # if i < self.n_T*2//3:
+            #     print('2')
             _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).repeat(2).to(self.device)
             g_i = g_i.repeat(2, 1)
 
-            z = torch.randn(n_sample, (7)) if i > 1 else torch.zeros((n_sample, 7))
+            z = torch.randn(n_sample, (6)) if i > 1 else torch.zeros((n_sample, 6))
             z = z.to(self.device)
-            eps = self.posenet(g_i, c_i, t_i, context_mask, _t_is)
+            eps = self.posenet(g_i, c_i, context_mask, _t_is)
             eps1 = eps[:n_sample]
             eps2 = eps[n_sample:]
             eps = (1 + guide_w) * eps1 - guide_w * eps2
 
             g_i = g_i[:n_sample]
             g_i = self.oneover_sqrta[i] * (g_i - eps * self.mab_over_sqrtmab[i]) + self.sqrt_beta_t[i] * z
-        return np.argmax(affordance_prediction.cpu().numpy(), axis=1), g_i.cpu().numpy()
+
+        output = {}
+        # output['log_prob'] = log_prob
+        output['pred_angles'] = g_i[:,:3]
+        output['pred_pose_transl'] = g_i[:,3:]
+        output['pred_joint_conf'] = torch.zeros((g_i.shape[0],15))
+
+        output = convert_output_to_grasp_mat(output, return_arr=True)
+        return output
