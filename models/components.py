@@ -135,7 +135,7 @@ class BPSMLP(nn.Module):
         self.bn1 = nn.BatchNorm1d(in_bps)
         self.rb1 = ResBlock(in_bps, n_neurons)
         self.rb2 = ResBlock(in_bps + n_neurons, n_neurons)
-        self.rb3 = ResBlock(in_bps + n_neurons, 512)
+        self.rb3 = ResBlock(in_bps + n_neurons, 1024)
 
         self.dout = nn.Dropout(0.3)
         # self.sigmoid = nn.Sigmoid()
@@ -170,6 +170,7 @@ class PoseNet(nn.Module):
     """
     def __init__(self):
         super(PoseNet, self).__init__()
+        grasp_dim = 6
         self.cloud_net0 = nn.Sequential(
             nn.Linear(1024, 512),
             nn.GroupNorm(8, 512),
@@ -197,17 +198,17 @@ class PoseNet(nn.Module):
             nn.Linear(16, 2)
         )
         self.cloud_influence_net3 = nn.Sequential(
-            nn.Linear(6 + 6 + 7, 6),
+            nn.Linear(6 + 6 + grasp_dim, 6),
             nn.GELU(),
             nn.Linear(6, 6)
         )
         self.cloud_influence_net2 = nn.Sequential(
-            nn.Linear(4 + 4 + 7, 4),
+            nn.Linear(4 + 4 + grasp_dim, 4),
             nn.GELU(),
             nn.Linear(4, 4)
         )
         self.cloud_influence_net1 = nn.Sequential(
-            nn.Linear(2 + 2 + 7, 2),
+            nn.Linear(2 + 2 + grasp_dim, 2),
             nn.GELU(),
             nn.Linear(2, 2)
         )
@@ -239,30 +240,27 @@ class PoseNet(nn.Module):
             nn.Linear(16, 2)
         )
         self.text_influence_net3 = nn.Sequential(
-            nn.Linear(6 + 6 + 7, 6),
+            nn.Linear(6 + 6 + grasp_dim, 6),
             nn.GELU(),
             nn.Linear(6, 6)
         )
         self.text_influence_net2 = nn.Sequential(
-            nn.Linear(4 + 4 + 7, 4),
+            nn.Linear(4 + 4 + grasp_dim, 4),
             nn.GELU(),
             nn.Linear(4, 4)
         )
         self.text_influence_net1 = nn.Sequential(
-            nn.Linear(2 + 2 + 7, 2),
+            nn.Linear(2 + 2 + grasp_dim, 2),
             nn.GELU(),
             nn.Linear(2, 2)
         )
 
-        # self.time_net3 = SinusoidalPositionEmbeddings(dim=6)
-        # self.time_net2 = SinusoidalPositionEmbeddings(dim=4)
-        # self.time_net1 = SinusoidalPositionEmbeddings(dim=2)
-        self.time_net3 = SinusoidalPositionEmbeddings(dim=12)
-        self.time_net2 = SinusoidalPositionEmbeddings(dim=8)
-        self.time_net1 = SinusoidalPositionEmbeddings(dim=4)
+        self.time_net3 = SinusoidalPositionEmbeddings(dim=6)
+        self.time_net2 = SinusoidalPositionEmbeddings(dim=4)
+        self.time_net1 = SinusoidalPositionEmbeddings(dim=2)
 
         self.down1 = nn.Sequential(
-            nn.Linear(7, 6),
+            nn.Linear(grasp_dim, 6),
             nn.GELU(),
             nn.Linear(6, 6)
         )
@@ -288,9 +286,9 @@ class PoseNet(nn.Module):
             nn.Linear(6, 6)
         )
         self.up3 = nn.Sequential(
-            nn.Linear(6 + 7, 7),
+            nn.Linear(6 + grasp_dim, grasp_dim),
             nn.GELU(),
-            nn.Linear(7, 7)
+            nn.Linear(grasp_dim, grasp_dim)
         )
 
     def forward_affordance(self, g, c, t, context_mask, _t):
@@ -361,32 +359,35 @@ class PoseNet(nn.Module):
         c2 = self.cloud_net2(c0)
         c3 = self.cloud_net3(c0)
 
-        _t0 = _t.unsqueeze(1)
-        _t1 = self.time_net1(_t0)
-        _t2 = self.time_net2(_t0)
-        _t3 = self.time_net3(_t0)
+        _t0 = _t.unsqueeze(1) # [B,1]
+        _t1 = self.time_net1(_t0).squeeze() # [B,1,2]
+        _t2 = self.time_net2(_t0).squeeze() # [B,1,4]
+        _t3 = self.time_net3(_t0).squeeze() # [B,1,6]
 
         g = g.float()
         g_down1 = self.down1(g) # 6
         g_down2 = self.down2(g_down1) # 4
         g_down3 = self.down3(g_down2) # 2
 
-        c1_influence = self.cloud_influence_net1(torch.cat((c1, g, _t1), dim=1))
+        c1_influence = self.cloud_influence_net1(torch.cat((c1, g, _t1), dim=1)) # [B,2]
         # t1_influence = self.text_influence_net1(torch.cat((t1, g, _t1), dim=1))
         # influences1 = F.softmax(torch.cat((c1_influence.unsqueeze(1), t1_influence.unsqueeze(1)), dim=1), dim=1)
         # ct1 = (c1 * influences1[:, 0, :] + t1 * influences1[:, 1, :])
-        up1 = self.up1(torch.cat((g_down3 * ct1 + _t1, g_down2), dim=1))
+        # up1 = self.up1(torch.cat((g_down3 * ct1 + _t1, g_down2), dim=1))
+        up1 = self.up1(torch.cat((g_down3 * c1_influence + _t1, g_down2), dim=1))
 
         c2_influence = self.cloud_influence_net2(torch.cat((c2, g, _t2), dim=1))
-        t2_influence = self.text_influence_net2(torch.cat((t2, g, _t2), dim=1))
-        influences2 = F.softmax(torch.cat((c2_influence.unsqueeze(1), t2_influence.unsqueeze(1)), dim=1), dim=1)
-        ct2 = (c2 * influences2[:, 0, :] + t2 * influences2[:, 1, :])
-        up2 = self.up2(torch.cat((up1 * ct2 + _t2, g_down1), dim=1))
+        # t2_influence = self.text_influence_net2(torch.cat((t2, g, _t2), dim=1))
+        # influences2 = F.softmax(torch.cat((c2_influence.unsqueeze(1), t2_influence.unsqueeze(1)), dim=1), dim=1)
+        # ct2 = (c2 * influences2[:, 0, :] + t2 * influences2[:, 1, :])
+        # up2 = self.up2(torch.cat((up1 * ct2 + _t2, g_down1), dim=1))
+        up2 = self.up2(torch.cat((up1 * c2_influence + _t2, g_down1), dim=1))
 
         c3_influence = self.cloud_influence_net3(torch.cat((c3, g, _t3), dim=1))
-        t3_influence = self.text_influence_net3(torch.cat((t3, g, _t3), dim=1))
-        influences3 = F.softmax(torch.cat((c3_influence.unsqueeze(1), t3_influence.unsqueeze(1)), dim=1), dim=1)
-        ct3 = (c3 * influences3[:, 0, :] + t3 * influences3[:, 1, :])
-        up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
+        # t3_influence = self.text_influence_net3(torch.cat((t3, g, _t3), dim=1))
+        # influences3 = F.softmax(torch.cat((c3_influence.unsqueeze(1), t3_influence.unsqueeze(1)), dim=1), dim=1)
+        # ct3 = (c3 * influences3[:, 0, :] + t3 * influences3[:, 1, :])
+        # up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
+        up3 = self.up3(torch.cat((up2 * c3_influence + _t3, g), dim=1))  # size [B, 6]
 
         return up3

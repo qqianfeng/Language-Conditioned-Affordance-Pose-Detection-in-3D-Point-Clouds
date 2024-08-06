@@ -45,14 +45,16 @@ class Trainer(object):
             g = g.to(DEVICE)
 
             # affordance_loss, pose_loss = self.model(xyz, text, affordance_label, g)
-            affordance_loss, pose_loss = self.model(xyz, g)
+            pose_loss = self.model(xyz, g)
 
-            loss = affordance_loss + pose_loss
+            # loss = affordance_loss + pose_loss
+            loss =  pose_loss
             loss.backward()
 
-            affordance_l = affordance_loss.item()
+            # affordance_l = affordance_loss.item()
             pose_l = pose_loss.item()
-            pbar.set_description(f'Affordance loss: {affordance_l:.5f}, Pose loss: {pose_l:.5f}')
+            # pbar.set_description(f'Affordance loss: {affordance_l:.5f}, Pose loss: {pose_l:.5f}')
+            pbar.set_description(f' Pose loss: {pose_l:.5f}')
             self.optimizer.step()
 
         if self.scheduler != None:
@@ -60,7 +62,9 @@ class Trainer(object):
         if self.bn_momentum != None:
             self.model.apply(lambda x: self.bn_momentum(x, self.epoch))
 
-        outstr = f"\nEpoch {self.epoch}, Last Affordance loss: {affordance_l:.5f}, Last Pose loss: {pose_l:.5f}"
+        # outstr = f"\nEpoch {self.epoch}, Last Affordance loss: {affordance_l:.5f}, Last Pose loss: {pose_l:.5f}"
+        outstr = f"\nEpoch {self.epoch},  Last Pose loss: {pose_l:.5f}"
+
         self.logger.cprint(outstr)
         print('Saving checkpoint')
         torch.save(self.model.state_dict(), opj(self.cfg.log_dir, 'current_model.t7'))

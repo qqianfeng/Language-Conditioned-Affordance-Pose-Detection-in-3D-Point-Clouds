@@ -171,7 +171,7 @@ class DetectionDiffusion(nn.Module):
         """
         B = xyz.shape[0]    # xyz's size [B, 3, 2048]
         if self.use_bps:
-            point_features = self.bpsmlp(xyz)
+            c = self.bpsmlp(xyz)
         else:
             point_features, c = self.pointnetplusplus(xyz) # point_features' size [B, 512, 2048], c'size [B, 1024] max pool point feature
 
