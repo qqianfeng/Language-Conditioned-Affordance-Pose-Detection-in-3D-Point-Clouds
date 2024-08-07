@@ -2,6 +2,7 @@ import torch
 from tqdm import tqdm
 from os.path import join as opj
 from utils import *
+import os
 
 
 DEVICE = torch.device('cuda')
@@ -67,8 +68,24 @@ class Trainer(object):
 
         self.logger.cprint(outstr)
         print('Saving checkpoint')
-        torch.save(self.model.state_dict(), opj(self.cfg.log_dir, 'current_model.t7'))
+        torch.save(self.model.state_dict(), opj(self.cfg.log_dir, f'current_model_{self.epoch}.t7'))
         self.epoch += 1
+
+    def load_checkpoint(self, filename='checkpoint.pth.tar'):
+        # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
+        self.epoch = 6
+        if os.path.isfile(filename):
+            print("=> loading checkpoint '{}'".format(filename))
+            checkpoint = torch.load(filename)
+            # start_epoch = checkpoint['epoch']
+            self.model.load_state_dict(checkpoint)
+            # self.optimizer.load_state_dict(checkpoint['optimizer'])
+            # losslogger = checkpoint['losslogger']
+            # print("=> loaded checkpoint '{}' (epoch {})"
+            #         .format(filename, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(filename))
+
 
     def val(self):
        raise NotImplementedError

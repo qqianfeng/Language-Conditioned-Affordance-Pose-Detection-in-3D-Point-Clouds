@@ -43,4 +43,8 @@ if __name__ == "__main__":
     )
 
     task_trainer = Trainer(cfg, training)
+    continue_train = True
+    ckpt_path = 'log/detectiondiffusion_bs32/current_model.t7'
+    if continue_train:
+        task_trainer.load_checkpoint(ckpt_path)
     task_trainer.run()

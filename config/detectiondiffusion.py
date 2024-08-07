@@ -3,7 +3,7 @@ import torch
 from os.path import join as opj
 from utils import PN2_BNMomentum, PN2_Scheduler
 
-exp_name = 'detectiondiffusion_bps'
+exp_name = 'detectiondiffusion_bs32_full'
 seed = 1
 log_dir = opj("./log/", exp_name)
 try:
@@ -18,7 +18,7 @@ dataset = dict(
   POSITIVE_ONLY= True,
   NEGATIVE_ONLY= False,
   POS_AND_NEG_GRASP= False,
-  use_bps=True,
+  use_bps=False,
 )
 
 scheduler = dict(
@@ -32,7 +32,7 @@ optimizer = dict(
     lr=1e-3,
     betas=(0.9, 0.999),
     eps=1e-08,
-    weight_decay=1e-5,
+    weight_decay=1e-5, #1e-5, 1e-4 is in paper
 )
 
 model = dict(
@@ -41,7 +41,7 @@ model = dict(
     background_text='none',
     betas=[1e-4, 0.02],
     n_T=1000,
-    drop_prob=0.1,
+    drop_prob=0.1, #0.1, 0.05 is in paper
     weights_init='default_init',
 )
 

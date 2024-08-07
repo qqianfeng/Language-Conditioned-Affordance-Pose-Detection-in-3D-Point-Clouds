@@ -12,7 +12,7 @@ from utils.metrics import maad_for_grasp_distribution
 import open3d as o3d
 import numpy as np
 
-GUIDE_W = 0.5
+GUIDE_W = 0.2 # 0.5, in paper is 0.2
 DEVICE=torch.device('cuda')
 
 
@@ -20,44 +20,12 @@ DEVICE=torch.device('cuda')
 def parse_args():
     parser = argparse.ArgumentParser(description="Test a model")
     parser.add_argument("--config", default="config/detectiondiffusion.py", help="test config file path")
-    parser.add_argument("--checkpoint", default="log/detectiondiffusion/current_model.t7",help="path to checkpoint model")
+    parser.add_argument("--checkpoint", default="log/detectiondiffusion_pointnet_bs16/current_model.t7",help="path to checkpoint model")
     parser.add_argument("--test_data", help="path to test_data")
     args = parser.parse_args()
     return args
 
-
-if __name__ == "__main__":
-    args = parse_args()
-    cfg = Config.fromfile(args.config)
-    os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
-    model = build_model(cfg).to(DEVICE)
-
-    if args.checkpoint != None:
-        print("Loading checkpoint....")
-        _, exten = os.path.splitext(args.checkpoint)
-        if exten == '.t7':
-            model.load_state_dict(torch.load(args.checkpoint))
-        elif exten == '.pth':
-            check = torch.load(args.checkpoint)
-            model.load_state_dict(check['model_state_dict'])
-    else:
-        raise ValueError("Must specify a checkpoint path!")
-
-    # load test data
-    grasp_data_path = os.path.join(cfg.dataset.PATH, cfg.dataset.GRASP_DATA_NANE)
-    grasp_data = GraspDataHandlerVae(grasp_data_path)
-    loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
-    val_dataset = FFHGeneratorDataset(cfg,eval=False)
-    # loader_dict = torch.utils.data.DataLoader(dset_gen,
-    #                                             batch_size=cfg.training_cfg.batch_size,
-    #                                             shuffle=True,
-    #                                             drop_last=True,
-    #                                             num_workers=cfg.training_cfg.num_worker)
-
-    batch = torch.load('data/eval_batch.pth', map_location="cuda:0")
-
-    # with open(args.test_data, 'rb') as f:
-    #     shape_data = pickle.load(f)
+def run_maad():
     transl_loss_sum = 0
     rot_loss_sum = 0
     joint_loss_sum = 0
@@ -111,6 +79,39 @@ if __name__ == "__main__":
         print(f'joint_loss_sum: {joint_loss_sum:.3f}')
         print(f'joint_loss_mean per grasp (rad^2): {joint_loss_sum/num_grasp:.3f}')
         print(f'coverage: {coverage_mean:.3f}')
+
+if __name__ == "__main__":
+    args = parse_args()
+    cfg = Config.fromfile(args.config)
+    os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
+    model = build_model(cfg).to(DEVICE)
+
+    if args.checkpoint != None:
+        print("Loading checkpoint....")
+        _, exten = os.path.splitext(args.checkpoint)
+        if exten == '.t7':
+            model.load_state_dict(torch.load(args.checkpoint))
+        elif exten == '.pth':
+            check = torch.load(args.checkpoint)
+            model.load_state_dict(check['model_state_dict'])
+    else:
+        raise ValueError("Must specify a checkpoint path!")
+
+    # load test data
+    grasp_data_path = os.path.join(cfg.dataset.PATH, cfg.dataset.GRASP_DATA_NANE)
+    grasp_data = GraspDataHandlerVae(grasp_data_path)
+    loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
+    val_dataset = FFHGeneratorDataset(cfg,eval=False)
+    # loader_dict = torch.utils.data.DataLoader(dset_gen,
+    #                                             batch_size=cfg.training_cfg.batch_size,
+    #                                             shuffle=True,
+    #                                             drop_last=True,
+    #                                             num_workers=cfg.training_cfg.num_worker)
+
+    batch = torch.load('data/eval_batch.pth', map_location="cuda:0")
+
+
+
         # for k, v in loss_per_item.items():
     # print("Testing")
     # model.eval()
@@ -121,3 +122,6 @@ if __name__ == "__main__":
 
     # with open('./result.pkl', 'wb') as f:
     #     pickle.dump(shape_data, f)
+    for GUIDE_W in np.linspace(0,1,5):
+        print(GUIDE_W)
+        run_maad()

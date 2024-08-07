@@ -223,8 +223,8 @@ class DetectionDiffusion(nn.Module):
         context_mask[n_sample:] = 0.    # make second half of the back context-free
 
         for i in range(self.n_T, 0, -1):
-            if i < self.n_T//3:
-                print('1')
+            # if i < self.n_T//3:
+            #     print('1')
             # if i < self.n_T*2//3:
             #     print('2')
             _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).repeat(2).to(self.device)
