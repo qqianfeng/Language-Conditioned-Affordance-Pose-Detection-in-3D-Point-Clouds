@@ -3,7 +3,7 @@ import torch
 from os.path import join as opj
 from utils import PN2_BNMomentum, PN2_Scheduler
 
-exp_name = 'detectiondiffusion_bps_bs64_lr1e-5_deeper_scale_nT500'
+exp_name = 'detectiondiffusion_bps_bs64'
 seed = 1
 log_dir = opj("./log/", exp_name)
 try:
@@ -39,10 +39,10 @@ model = dict(
     type='detectiondiffusion',
     device=torch.device('cuda'),
     grasp_dim=21,
-    scale_down = [20,12,4], #[6,4,2]
+    scale_down = [6,4,2], #[20,12,4],
     background_text='none',
     betas=[1e-4, 0.02],
-    n_T=500,
+    n_T=1000,
     drop_prob=0.1, #0.1, 0.05 is in paper
     weights_init='default_init',
 )
