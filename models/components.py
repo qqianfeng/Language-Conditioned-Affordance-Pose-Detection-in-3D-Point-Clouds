@@ -404,5 +404,4 @@ class PoseNet(nn.Module):
         # up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
         up3 = self.up3(torch.cat((up2 * c3_influence + _t3, g), dim=1))  # size [B, 6]
 
-
         return up3
