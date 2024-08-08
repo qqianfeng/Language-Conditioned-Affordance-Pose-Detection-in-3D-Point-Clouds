@@ -159,6 +159,21 @@ def convert_output_to_grasp_mat(samples, return_arr=True):
 
     return samples
 
+def hom_matrix_from_transl_rot_matrix(transl, rot_matrix):
+    """Transform rot_matrix and transl vector into 4x4 homogenous transform.
+
+    Args:
+        transl (array): Translation array 3x1
+        rot_matrix (array): Rotation matrix 3x3
+
+    Returns:
+        hom_matrix (array): 4x4 homogenous transform.
+    """
+    hom_matrix = np.eye(4)
+    hom_matrix[:3, :3] = rot_matrix
+    hom_matrix[:3, 3] = transl
+    return hom_matrix
+
 class IOStream():
     def __init__(self, path):
         self.f = open(path, 'a')

@@ -17,7 +17,7 @@ NC = 'no_collision'
 
 class GraspDataHandlerVae:
     def __init__(self, file_path):
-        print("GraspDataHandlerVae",file_path)
+        # print("GraspDataHandlerVae",file_path)
         assert os.path.exists(file_path)
         self.file_path = file_path
 

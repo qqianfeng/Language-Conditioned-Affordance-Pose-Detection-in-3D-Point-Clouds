@@ -38,9 +38,10 @@ class Trainer(object):
 
             rotation = angle_vector.float()
             translation = transl.float()
+            joint_conf = joint_conf.float()
             # affordance_label = affordance_label.squeeze().long()
             translation = translation.view(self.cfg.training_cfg.batch_size,3)
-            g = torch.cat((rotation, translation), dim=1)
+            g = torch.cat((rotation, translation, joint_conf), dim=1)
             xyz = xyz.to(DEVICE)
             # affordance_label = affordance_label.to(DEVICE)
             g = g.to(DEVICE)
@@ -68,8 +69,9 @@ class Trainer(object):
 
         self.logger.cprint(outstr)
         print('Saving checkpoint')
-        torch.save(self.model.state_dict(), opj(self.cfg.log_dir, f'current_model_{self.epoch}.t7'))
         self.epoch += 1
+        if self.epoch %10 == 0:
+            torch.save(self.model.state_dict(), opj(self.cfg.log_dir, f'current_model_{self.epoch}.t7'))
 
     def load_checkpoint(self, filename='checkpoint.pth.tar'):
         # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.

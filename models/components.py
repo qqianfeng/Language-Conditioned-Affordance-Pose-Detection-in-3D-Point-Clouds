@@ -89,20 +89,29 @@ class PointNetPlusPlus(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, Fin, Fout, n_neurons=256):
+        group_norm = True
         super(ResBlock, self).__init__()
         self.Fin = Fin
         self.Fout = Fout
 
         self.fc1 = nn.Linear(Fin, n_neurons)
-        self.bn1 = nn.BatchNorm1d(n_neurons)
+        if group_norm:
+            self.bn1 = nn.GroupNorm(8,n_neurons)
+        else:
+            self.bn1 = nn.BatchNorm1d(n_neurons)
 
         self.fc2 = nn.Linear(n_neurons, Fout)
-        self.bn2 = nn.BatchNorm1d(Fout)
+        if group_norm:
+            self.bn2 = nn.GroupNorm(8, Fout)
+        else:
+            self.bn2 = nn.BatchNorm1d(Fout)
 
         if Fin != Fout:
             self.fc3 = nn.Linear(Fin, Fout)
-
-        self.ll = nn.LeakyReLU(negative_slope=0.2)
+        if group_norm:
+            self.ll = nn.GELU()
+        else:
+            self.ll = nn.LeakyReLU(negative_slope=0.2)
 
     def forward(self, x, final_ll=True):
         if self.Fin == self.Fout:
@@ -168,9 +177,12 @@ class PoseNet(nn.Module):
     """_summary_
     ContextPoseNet class. This class is for a denoising step in the diffusion.
     """
-    def __init__(self):
+    def __init__(self,cfg):
         super(PoseNet, self).__init__()
-        grasp_dim = 6
+        grasp_dim = cfg.grasp_dim
+        # scale_down = [6,4,2]
+        scale_down = cfg.scale_down
+
         self.cloud_net0 = nn.Sequential(
             nn.Linear(1024, 512),
             nn.GroupNorm(8, 512),
@@ -183,110 +195,110 @@ class PoseNet(nn.Module):
             nn.Linear(32, 16),
             nn.GroupNorm(4, 16),
             nn.GELU(),
-            nn.Linear(16, 6)
+            nn.Linear(16, scale_down[0])
         )
         self.cloud_net2 = nn.Sequential(
             nn.Linear(32, 16),
             nn.GroupNorm(4, 16),
             nn.GELU(),
-            nn.Linear(16, 4)
+            nn.Linear(16, scale_down[1])
         )
         self.cloud_net1 = nn.Sequential(
             nn.Linear(32, 16),
             nn.GroupNorm(4, 16),
             nn.GELU(),
-            nn.Linear(16, 2)
+            nn.Linear(16, scale_down[2])
         )
         self.cloud_influence_net3 = nn.Sequential(
-            nn.Linear(6 + 6 + grasp_dim, 6),
+            nn.Linear(scale_down[0] + scale_down[0] + grasp_dim, scale_down[0]),
             nn.GELU(),
-            nn.Linear(6, 6)
+            nn.Linear(scale_down[0], scale_down[0])
         )
         self.cloud_influence_net2 = nn.Sequential(
-            nn.Linear(4 + 4 + grasp_dim, 4),
+            nn.Linear(scale_down[1] + scale_down[1] + grasp_dim, scale_down[1]),
             nn.GELU(),
-            nn.Linear(4, 4)
+            nn.Linear(scale_down[1], scale_down[1])
         )
         self.cloud_influence_net1 = nn.Sequential(
-            nn.Linear(2 + 2 + grasp_dim, 2),
+            nn.Linear(scale_down[2] + scale_down[2] + grasp_dim, scale_down[2]),
             nn.GELU(),
-            nn.Linear(2, 2)
+            nn.Linear(scale_down[2], scale_down[2])
         )
 
-        self.text_net0 = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.GroupNorm(8, 256),
-            nn.GELU(),
-            nn.Linear(256, 128),
-            nn.GELU(),
-            nn.Linear(128, 32)
-        )
-        self.text_net3 = nn.Sequential(
-            nn.Linear(32, 16),
-            nn.GroupNorm(4, 16),
-            nn.GELU(),
-            nn.Linear(16, 6)
-        )
-        self.text_net2 = nn.Sequential(
-            nn.Linear(32, 16),
-            nn.GroupNorm(4, 16),
-            nn.GELU(),
-            nn.Linear(16, 4)
-        )
-        self.text_net1 = nn.Sequential(
-            nn.Linear(32, 16),
-            nn.GroupNorm(4, 16),
-            nn.GELU(),
-            nn.Linear(16, 2)
-        )
-        self.text_influence_net3 = nn.Sequential(
-            nn.Linear(6 + 6 + grasp_dim, 6),
-            nn.GELU(),
-            nn.Linear(6, 6)
-        )
-        self.text_influence_net2 = nn.Sequential(
-            nn.Linear(4 + 4 + grasp_dim, 4),
-            nn.GELU(),
-            nn.Linear(4, 4)
-        )
-        self.text_influence_net1 = nn.Sequential(
-            nn.Linear(2 + 2 + grasp_dim, 2),
-            nn.GELU(),
-            nn.Linear(2, 2)
-        )
+        # self.text_net0 = nn.Sequential(
+        #     nn.Linear(512, 256),
+        #     nn.GroupNorm(8, 256),
+        #     nn.GELU(),
+        #     nn.Linear(256, 128),
+        #     nn.GELU(),
+        #     nn.Linear(128, 32)
+        # )
+        # self.text_net3 = nn.Sequential(
+        #     nn.Linear(32, 16),
+        #     nn.GroupNorm(4, 16),
+        #     nn.GELU(),
+        #     nn.Linear(16, 6)
+        # )
+        # self.text_net2 = nn.Sequential(
+        #     nn.Linear(32, 16),
+        #     nn.GroupNorm(4, 16),
+        #     nn.GELU(),
+        #     nn.Linear(16, 4)
+        # )
+        # self.text_net1 = nn.Sequential(
+        #     nn.Linear(32, 16),
+        #     nn.GroupNorm(4, 16),
+        #     nn.GELU(),
+        #     nn.Linear(16, 2)
+        # )
+        # self.text_influence_net3 = nn.Sequential(
+        #     nn.Linear(6 + 6 + grasp_dim, 6),
+        #     nn.GELU(),
+        #     nn.Linear(6, 6)
+        # )
+        # self.text_influence_net2 = nn.Sequential(
+        #     nn.Linear(4 + 4 + grasp_dim, 4),
+        #     nn.GELU(),
+        #     nn.Linear(4, 4)
+        # )
+        # self.text_influence_net1 = nn.Sequential(
+        #     nn.Linear(2 + 2 + grasp_dim, 2),
+        #     nn.GELU(),
+        #     nn.Linear(2, 2)
+        # )
 
-        self.time_net3 = SinusoidalPositionEmbeddings(dim=6)
-        self.time_net2 = SinusoidalPositionEmbeddings(dim=4)
-        self.time_net1 = SinusoidalPositionEmbeddings(dim=2)
+        self.time_net3 = SinusoidalPositionEmbeddings(dim=scale_down[0])
+        self.time_net2 = SinusoidalPositionEmbeddings(dim=scale_down[1])
+        self.time_net1 = SinusoidalPositionEmbeddings(dim=scale_down[2])
 
         self.down1 = nn.Sequential(
-            nn.Linear(grasp_dim, 6),
+            nn.Linear(grasp_dim, scale_down[0]),
             nn.GELU(),
-            nn.Linear(6, 6)
+            nn.Linear(scale_down[0], scale_down[0])
         )
         self.down2 = nn.Sequential(
-            nn.Linear(6, 4),
+            nn.Linear(scale_down[0], scale_down[1]),
             nn.GELU(),
-            nn.Linear(4, 4)
+            nn.Linear(scale_down[1], scale_down[1])
         )
         self.down3 = nn.Sequential(
-            nn.Linear(4, 2),
+            nn.Linear(scale_down[1], scale_down[2]),
             nn.GELU(),
-            nn.Linear(2, 2)
+            nn.Linear(scale_down[2], scale_down[2])
         )
 
         self.up1 = nn.Sequential(
-            nn.Linear(2 + 4, 4),
+            nn.Linear(scale_down[2] + scale_down[1], scale_down[1]),
             nn.GELU(),
-            nn.Linear(4, 4)
+            nn.Linear(scale_down[1], scale_down[1])
         )
         self.up2 = nn.Sequential(
-            nn.Linear(4 + 6, 6),
+            nn.Linear(scale_down[1] + scale_down[0], scale_down[0]),
             nn.GELU(),
-            nn.Linear(6, 6)
+            nn.Linear(scale_down[0], scale_down[0])
         )
         self.up3 = nn.Sequential(
-            nn.Linear(6 + grasp_dim, grasp_dim),
+            nn.Linear(scale_down[0] + grasp_dim, grasp_dim),
             nn.GELU(),
             nn.Linear(grasp_dim, grasp_dim)
         )
@@ -369,6 +381,8 @@ class PoseNet(nn.Module):
         g_down2 = self.down2(g_down1) # 4
         g_down3 = self.down3(g_down2) # 2
 
+        simple_modify = False
+
         c1_influence = self.cloud_influence_net1(torch.cat((c1, g, _t1), dim=1)) # [B,2]
         # t1_influence = self.text_influence_net1(torch.cat((t1, g, _t1), dim=1))
         # influences1 = F.softmax(torch.cat((c1_influence.unsqueeze(1), t1_influence.unsqueeze(1)), dim=1), dim=1)
@@ -389,5 +403,6 @@ class PoseNet(nn.Module):
         # ct3 = (c3 * influences3[:, 0, :] + t3 * influences3[:, 1, :])
         # up3 = self.up3(torch.cat((up2 * ct3 + _t3, g), dim=1))  # size [B, 7]
         up3 = self.up3(torch.cat((up2 * c3_influence + _t3, g), dim=1))  # size [B, 6]
+
 
         return up3

@@ -105,7 +105,7 @@ def maad_for_grasp_distribution(grasp1, grasp2,L1=False):
     unique_cor_grasp_idxs = sorted(set(cor_grasp_idxs), key=cor_grasp_idxs.index)
     coverage = len(unique_cor_grasp_idxs) / len(grasp2['transl'])
 
-    return np.sum(transl_loss), np.sum(rot_loss), np.sum(joint_loss), coverage
+    return np.nansum(transl_loss), np.nansum(rot_loss), np.nansum(joint_loss), coverage
 
 
 def maad_for_grasp_distribution_reversed(grasp1, grasp2):

@@ -4,6 +4,7 @@ from gorilla.config import Config
 from utils import *
 import argparse
 import torch
+import shutil
 
 
 # Argument Parser
@@ -17,6 +18,8 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     cfg = Config.fromfile(args.config)
+    file_name = os.path.basename(args.config)
+    shutil.copyfile(args.config, os.path.join(cfg.log_dir,file_name))
 
     logger = IOStream(opj(cfg.log_dir, 'run.log'))
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
@@ -43,7 +46,7 @@ if __name__ == "__main__":
     )
 
     task_trainer = Trainer(cfg, training)
-    continue_train = True
+    continue_train = False
     ckpt_path = 'log/detectiondiffusion_bs32/current_model.t7'
     if continue_train:
         task_trainer.load_checkpoint(ckpt_path)
