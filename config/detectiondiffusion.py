@@ -3,7 +3,7 @@ import torch
 from os.path import join as opj
 from utils import PN2_BNMomentum, PN2_Scheduler
 
-exp_name = 'detectiondiffusion_bs32_full'
+exp_name = 'detectiondiffusion_bps_bs64_lr1e-5_deeper_scale_nT500'
 seed = 1
 log_dir = opj("./log/", exp_name)
 try:
@@ -18,18 +18,18 @@ dataset = dict(
   POSITIVE_ONLY= True,
   NEGATIVE_ONLY= False,
   POS_AND_NEG_GRASP= False,
-  use_bps=False,
+  use_bps=True,
 )
-
+# TODO: change init_lr here according to optimizier lr
 scheduler = dict(
     type='lr_lambda',
-    lr_lambda=PN2_Scheduler(init_lr=0.001, step=20,
-                            decay_rate=0.5, min_lr=1e-5)
+    lr_lambda=PN2_Scheduler(init_lr=1e-5, step=20,
+                            decay_rate=0.5, min_lr=1e-7)
 )
 
 optimizer = dict(
     type='adam',
-    lr=1e-3,
+    lr=1e-5,
     betas=(0.9, 0.999),
     eps=1e-08,
     weight_decay=1e-5, #1e-5, 1e-4 is in paper
@@ -38,9 +38,11 @@ optimizer = dict(
 model = dict(
     type='detectiondiffusion',
     device=torch.device('cuda'),
+    grasp_dim=21,
+    scale_down = [20,12,4], #[6,4,2]
     background_text='none',
     betas=[1e-4, 0.02],
-    n_T=1000,
+    n_T=500,
     drop_prob=0.1, #0.1, 0.05 is in paper
     weights_init='default_init',
 )
@@ -48,8 +50,8 @@ model = dict(
 training_cfg = dict(
     num_worker=10,
     model=model,
-    batch_size=32,
-    epoch=200,
+    batch_size=64,
+    epoch=50,
     gpu='0',
     workflow=dict(
         train=1,

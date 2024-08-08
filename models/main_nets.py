@@ -136,14 +136,15 @@ class DetectionDiffusionAffordance(nn.Module):
 
 
 class DetectionDiffusion(nn.Module):
-    def __init__(self, betas, n_T, device, background_text, drop_prob=0.1,use_bps=True):
+    def __init__(self, cfg, betas, n_T, device, background_text, drop_prob=0.1,use_bps=True):
         """_summary_
 
         Args:
             drop_prob: probability to drop the conditions
         """
         super(DetectionDiffusion, self).__init__()
-        self.posenet = PoseNet()
+        self.cfg = cfg
+        self.posenet = PoseNet(cfg)
         self.use_bps = use_bps
         if self.use_bps:
             self.bpsmlp = BPSMLP()
@@ -208,7 +209,8 @@ class DetectionDiffusion(nn.Module):
         Detect affordance for one point cloud and sample [n_sample] poses that support the 'text' affordance task,
         following the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'.
         """
-        g_i = torch.randn(n_sample, (6)).to(self.device) # start by sampling from Gaussian noise
+        grasp_dim = self.cfg.grasp_dim
+        g_i = torch.randn(n_sample, (grasp_dim)).to(self.device) # start by sampling from Gaussian noise
         if self.use_bps:
             c = self.bpsmlp(xyz)
         else:
@@ -223,14 +225,14 @@ class DetectionDiffusion(nn.Module):
         context_mask[n_sample:] = 0.    # make second half of the back context-free
 
         for i in range(self.n_T, 0, -1):
-            # if i < self.n_T//3:
+            # if i == self.n_T//3:
             #     print('1')
-            # if i < self.n_T*2//3:
+            # if i == self.n_T*2//3:
             #     print('2')
             _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).repeat(2).to(self.device)
             g_i = g_i.repeat(2, 1)
 
-            z = torch.randn(n_sample, (6)) if i > 1 else torch.zeros((n_sample, 6))
+            z = torch.randn(n_sample, (grasp_dim)) if i > 1 else torch.zeros((n_sample, grasp_dim))
             z = z.to(self.device)
             eps = self.posenet(g_i, c_i, context_mask, _t_is)
             eps1 = eps[:n_sample]
@@ -243,8 +245,8 @@ class DetectionDiffusion(nn.Module):
         output = {}
         # output['log_prob'] = log_prob
         output['pred_angles'] = g_i[:,:3]
-        output['pred_pose_transl'] = g_i[:,3:]
-        output['pred_joint_conf'] = torch.zeros((g_i.shape[0],15))
+        output['pred_pose_transl'] = g_i[:,3:6]
+        output['pred_joint_conf'] = g_i[:,6:]
 
         output = convert_output_to_grasp_mat(output, return_arr=True)
         return output
