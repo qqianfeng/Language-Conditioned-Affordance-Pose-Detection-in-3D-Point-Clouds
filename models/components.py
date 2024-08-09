@@ -355,7 +355,7 @@ class PoseNet(nn.Module):
 
         return up3
 
-    def forward(self, g, c, context_mask, _t):
+    def forward(self, g, c, _t, context_mask=None):
         """_summary_
 
         Args:
@@ -365,7 +365,9 @@ class PoseNet(nn.Module):
             # context_mask: masks {0, 1} for the contexts, size [B, 1]
             _t is for the timesteps, size [B,]
         """
-        c = c * context_mask
+        if context_mask is not None:
+            c = c * context_mask
+            
         c0 = self.cloud_net0(c)
         c1 = self.cloud_net1(c0)
         c2 = self.cloud_net2(c0)

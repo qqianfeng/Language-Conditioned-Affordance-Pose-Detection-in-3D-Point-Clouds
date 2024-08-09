@@ -96,7 +96,7 @@ def visualize(samples, pcd_path):
         samples_copy = samples
     show_generated_grasp_distribution(pcd_path, samples_copy)
 
-def run_maad():
+def run_maad(model):
     transl_loss_sum = 0
     rot_loss_sum = 0
     joint_loss_sum = 0
@@ -125,7 +125,8 @@ def run_maad():
                 xyz = torch.from_numpy(xyz).unsqueeze(0).float().cuda()
                 # xyz = xyz.view(1,-1,3)
 
-            out = model.detect_and_sample(xyz, n_sample=100, guide_w=GUIDE_W)
+            # out = model.detect_and_sample(xyz, n_sample=100, guide_w=GUIDE_W)
+            out = model.detect_and_sample_no_classifier_free(xyz, n_sample=100)
 
             vis=False
             if vis:
@@ -215,4 +216,4 @@ if __name__ == "__main__":
                 for GUIDE_W in np.linspace(0,1,5):
                 # GUIDE_W = 0.5
                     print("GUIDE_W ",GUIDE_W, file=file)
-                    run_maad()
+                    run_maad(model)

@@ -198,10 +198,11 @@ class DetectionDiffusion(nn.Module):
         )  # This is the g_t, which is sqrt(alphabar) g_0 + sqrt(1-alphabar) * eps
 
         # dropout context with some probability
-        context_mask = torch.bernoulli(torch.zeros(B, 1) + 1 - self.drop_prob).to(self.device)
+        # context_mask = torch.bernoulli(torch.zeros(B, 1) + 1 - self.drop_prob).to(self.device)
 
         # Loss for poseing is MSE between added noise, and our predicted noise
-        pose_loss = self.loss_mse(noise, self.posenet(g_t, c, context_mask, _ts / self.n_T))
+        # pose_loss = self.loss_mse(noise, self.posenet(g_t, c, context_mask, _ts / self.n_T))
+        pose_loss = self.loss_mse(noise, self.posenet(g_t, c, _ts / self.n_T))
         return pose_loss
 
     def detect_and_sample(self, xyz, n_sample, guide_w):
@@ -240,6 +241,40 @@ class DetectionDiffusion(nn.Module):
             eps = (1 + guide_w) * eps1 - guide_w * eps2
 
             g_i = g_i[:n_sample]
+            g_i = self.oneover_sqrta[i] * (g_i - eps * self.mab_over_sqrtmab[i]) + self.sqrt_beta_t[i] * z
+
+        output = {}
+        # output['log_prob'] = log_prob
+        output['pred_angles'] = g_i[:,:3]
+        output['pred_pose_transl'] = g_i[:,3:6]
+        output['pred_joint_conf'] = g_i[:,6:]
+
+        output = convert_output_to_grasp_mat(output, return_arr=True)
+        return output
+    
+    def detect_and_sample_no_classifier_free(self, xyz, n_sample):
+        """_summary_
+        Detect affordance for one point cloud and sample [n_sample] poses that support the 'text' affordance task,
+        following the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'.
+        """
+        grasp_dim = self.cfg.grasp_dim
+        g_i = torch.randn(n_sample, (grasp_dim)).to(self.device) # start by sampling from Gaussian noise
+        if self.use_bps:
+            c = self.bpsmlp(xyz)
+        else:
+            point_features, c = self.pointnetplusplus(xyz) # point_features' size [B, 512, 2048], c'size [B, 1024] max pool point feature
+
+        c_i = c.repeat(n_sample, 1)
+        context_mask = torch.ones((n_sample, 1)).float().to(self.device)
+        for i in range(self.n_T, 0, -1):
+            # if i == self.n_T//3:
+            #     print('1')
+            # if i == self.n_T*2//3:
+            #     print('2')
+            _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).repeat(2).to(self.device)
+            z = torch.randn(n_sample, (grasp_dim)) if i > 1 else torch.zeros((n_sample, grasp_dim))
+            z = z.to(self.device)
+            eps = self.posenet(g_i, c_i, context_mask, _t_is)
             g_i = self.oneover_sqrta[i] * (g_i - eps * self.mab_over_sqrtmab[i]) + self.sqrt_beta_t[i] * z
 
         output = {}
