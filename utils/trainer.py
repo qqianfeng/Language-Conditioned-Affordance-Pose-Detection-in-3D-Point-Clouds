@@ -17,6 +17,7 @@ class Trainer(object):
         # self.dataset_dict = running["dataset_dict"]
         self.loader_dict = running["loader_dict"]
         self.train_loader = self.loader_dict.get("train_loader", None)
+        self.val_loader = self.loader_dict.get("val_loader", None)
         self.optimizer_dict = running["optim_dict"]
         self.optimizer = self.optimizer_dict.get("optimizer", None)
         self.scheduler = self.optimizer_dict.get("scheduler", None)
@@ -75,7 +76,7 @@ class Trainer(object):
 
     def load_checkpoint(self, filename='checkpoint.pth.tar'):
         # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
-        self.epoch = 6
+        self.epoch = 50
         if os.path.isfile(filename):
             print("=> loading checkpoint '{}'".format(filename))
             checkpoint = torch.load(filename)
@@ -90,7 +91,42 @@ class Trainer(object):
 
 
     def val(self):
-       raise NotImplementedError
+        self.model.eval()
+        self.logger.cprint("Epoch(%d) begin eval........" % self.epoch)
+        pbar = tqdm(self.val_loader)
+
+        # for _, _, xyz, text, affordance_label, rotation, translation in pbar:
+        for rot_matrix, angle_vector, transl, joint_conf,bps_object,pcd_array,obj_name in pbar:
+            if self.use_bps:
+                xyz = bps_object.float()
+            else:
+                xyz = pcd_array.float()
+
+            rotation = angle_vector.float()
+            translation = transl.float()
+            joint_conf = joint_conf.float()
+            # affordance_label = affordance_label.squeeze().long()
+            translation = translation.view(self.cfg.training_cfg.batch_size,3)
+            g = torch.cat((rotation, translation, joint_conf), dim=1)
+            xyz = xyz.to(DEVICE)
+            # affordance_label = affordance_label.to(DEVICE)
+            g = g.to(DEVICE)
+
+            # affordance_loss, pose_loss = self.model(xyz, text, affordance_label, g)
+            pose_loss = self.model(xyz, g)
+
+            # loss = affordance_loss + pose_loss
+            loss =  pose_loss
+
+            # affordance_l = affordance_loss.item()
+            pose_l = pose_loss.item()
+            # pbar.set_description(f'Affordance loss: {affordance_l:.5f}, Pose loss: {pose_l:.5f}')
+            pbar.set_description(f' Eval Pose loss: {pose_l:.5f}')
+
+        # outstr = f"\nEpoch {self.epoch}, Last Affordance loss: {affordance_l:.5f}, Last Pose loss: {pose_l:.5f}"
+        outstr = f"\nEpoch {self.epoch},  Eval Pose loss: {pose_l:.5f}"
+
+        self.logger.cprint(outstr)
 
     def test(self):
         raise NotImplementedError

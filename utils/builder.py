@@ -82,9 +82,16 @@ def build_loader(cfg):
                                                 shuffle=True,
                                                 drop_last=True,
                                                 num_workers=cfg.training_cfg.num_worker)
+    val_dset_gen = FFHGeneratorDataset(cfg,eval=True)
+    val_loader = torch.utils.data.DataLoader(val_dset_gen,
+                                                batch_size=cfg.training_cfg.batch_size,
+                                                shuffle=True,
+                                                drop_last=True,
+                                                num_workers=cfg.training_cfg.num_worker)
 
     loader_dict = dict(
         train_loader=train_loader,
+        val_loader=val_loader,
     )
 
     return loader_dict

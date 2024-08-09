@@ -111,9 +111,9 @@ def run_maad():
     model.eval()
     with torch.no_grad():
         for idx in range(len(batch['obj_name'])):
-            palm_poses, joint_confs, num_pos = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
+            # palm_poses, joint_confs, num_pos = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
             grasps_gt = val_dataset.get_grasps_from_pcd_path(batch['pcd_path'][idx])
-            num_gt_grasps = grasps_gt['transl'].shape[0]
+            # num_gt_grasps = grasps_gt['transl'].shape[0]
             if cfg.dataset.use_bps:
                 xyz = batch['bps_object'][idx].unsqueeze(0).float().cuda() # old: bps.to('cuda')
             else:
@@ -167,6 +167,7 @@ if __name__ == "__main__":
     # cfg = Config.fromfile(args.config)
 
     filename = "output.cls"
+    batch = torch.load('data/eval_batch.pth', map_location="cuda:0")
 
     # Open the file in write mode
     with open(filename, 'w') as file:
@@ -210,7 +211,6 @@ if __name__ == "__main__":
                 grasp_data = GraspDataHandlerVae(grasp_data_path)
                 loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
                 val_dataset = FFHGeneratorDataset(cfg,eval=False)
-                batch = torch.load('data/eval_batch.pth', map_location="cuda:0")
 
                 for GUIDE_W in np.linspace(0,1,5):
                 # GUIDE_W = 0.5
