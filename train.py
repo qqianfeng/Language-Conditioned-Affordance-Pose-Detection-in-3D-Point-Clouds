@@ -19,8 +19,10 @@ if __name__ == "__main__":
     args = parse_args()
     cfg = Config.fromfile(args.config)
     file_name = os.path.basename(args.config)
-    shutil.copyfile(args.config, os.path.join(cfg.log_dir,file_name))
-
+    try:
+        shutil.copyfile(args.config, os.path.join(cfg.log_dir,file_name))
+    except Exception:
+        print('file exist')
     logger = IOStream(opj(cfg.log_dir, 'run.log'))
     os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
     num_gpu = len(cfg.training_cfg.gpu.split(','))      # number of GPUs to use
@@ -47,7 +49,7 @@ if __name__ == "__main__":
 
     task_trainer = Trainer(cfg, training)
     continue_train = False
-    ckpt_path = 'log/detectiondiffusion_bs32/current_model.t7'
+    ckpt_path = 'log/detectiondiffusion_bps_bs64_new/current_model_50.t7'
     if continue_train:
         task_trainer.load_checkpoint(ckpt_path)
     task_trainer.run()

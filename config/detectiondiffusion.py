@@ -3,7 +3,7 @@ import torch
 from os.path import join as opj
 from utils import PN2_BNMomentum, PN2_Scheduler
 
-exp_name = 'detectiondiffusion_bps_bs64'
+exp_name = 'detectiondiffusion_bps_bs64_new'
 seed = 1
 log_dir = opj("./log/", exp_name)
 try:
@@ -51,7 +51,7 @@ training_cfg = dict(
     num_worker=10,
     model=model,
     batch_size=64,
-    epoch=50,
+    epoch=200,
     gpu='0',
     workflow=dict(
         train=1,
