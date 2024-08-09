@@ -265,16 +265,15 @@ class DetectionDiffusion(nn.Module):
             point_features, c = self.pointnetplusplus(xyz) # point_features' size [B, 512, 2048], c'size [B, 1024] max pool point feature
 
         c_i = c.repeat(n_sample, 1)
-        context_mask = torch.ones((n_sample, 1)).float().to(self.device)
         for i in range(self.n_T, 0, -1):
             # if i == self.n_T//3:
             #     print('1')
             # if i == self.n_T*2//3:
             #     print('2')
-            _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).repeat(2).to(self.device)
+            _t_is = torch.tensor([i / self.n_T]).repeat(n_sample).to(self.device)
             z = torch.randn(n_sample, (grasp_dim)) if i > 1 else torch.zeros((n_sample, grasp_dim))
             z = z.to(self.device)
-            eps = self.posenet(g_i, c_i, context_mask, _t_is)
+            eps = self.posenet(g_i, c_i, _t_is)
             g_i = self.oneover_sqrta[i] * (g_i - eps * self.mab_over_sqrtmab[i]) + self.sqrt_beta_t[i] * z
 
         output = {}

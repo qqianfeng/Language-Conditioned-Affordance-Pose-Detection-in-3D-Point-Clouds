@@ -153,67 +153,59 @@ def run_maad(model):
 
         coverage_mean = coverage_sum / len(batch['obj_name'])
         num_grasp = 100 * len(batch['obj_name'])
-        print(f'transl_loss_sum: {transl_loss_sum:.3f}', file=file)
+        print(f'transl_loss_sum: {transl_loss_sum:.3f}')
         # print(f'transl_loss_mean per grasp (m): {transl_loss_sum/num_grasp:.6f}')
-        print(f'rot_loss_sum: {rot_loss_sum:.3f}', file=file)
+        print(f'rot_loss_sum: {rot_loss_sum:.3f}')
         # print(f'rot_loss_mean per grasp (rad): {rot_loss_sum/num_grasp:.3f}')
-        print(f'joint_loss_sum: {joint_loss_sum:.3f}', file=file)
+        print(f'joint_loss_sum: {joint_loss_sum:.3f}')
         # print(f'joint_loss_mean per grasp (rad^2): {joint_loss_sum/num_grasp:.3f}')
-        print(f'coverage: {coverage_mean:.3f}', file=file)
-        print(f'num of valid grasps {num_valid_grasps} from total of 6400', file=file)
+        print(f'coverage: {coverage_mean:.3f}')
+        print(f'num of valid grasps {num_valid_grasps} from total of 6400')
         # print(f'number of nan for transl, rot and joint: ', num_nan_transl, num_nan_rot, num_nan_joint)
 
 if __name__ == "__main__":
     args = parse_args()
     # cfg = Config.fromfile(args.config)
 
-    filename = "output.cls"
+    # filename = "output.cls"
     batch = torch.load('data/eval_batch.pth', map_location="cuda:0")
 
     # Open the file in write mode
-    with open(filename, 'w') as file:
-        model_names = [
-                    #     'detectiondiffusion_bps_bs32_lr1e-5_withschedule',
-                    #   'detectiondiffusion_bps_bs64_lr1e-5_deeper_scale_nT500',
-                    #   'detectiondiffusion_bps_bs64_lr1e-5_deeper_scale',
-                    'detectiondiffusion_bps_bs64_new',
-                    #   'detectiondiffusion_bps_bs256_1e-4',
-                    #   'detectiondiffusion_bps_bs256',
-                    #   'detectiondiffusion_bps_bs1024_1e-4',
-                    #   'detectiondiffusion_bps_bs1024',
-                    ]
-        for model_name in model_names:
-            test = [10,20,30,40,50,100,150,200]
-            for idx in test:
-                path2checkpoint = os.path.join('log',model_name,'current_model_' + str(idx)+'.t7')
-                if not os.path.exists(path2checkpoint):
-                    continue
-                path2config = os.path.join('log',model_name,'detectiondiffusion.py')
-                if not os.path.exists(path2config):
-                    continue
-                cfg = Config.fromfile(path2config)
-                os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
-                model = build_model(cfg).to(DEVICE)
+    # with open(filename, 'w') as file:
+    model_names = ['detectDif_lr1e-6_bz32_nT100_dp00']
+    for model_name in model_names:
+        test = [10,20,30,40,50,100,150,200]
+        # for idx in test:
+        idx = 50
+        path2checkpoint = os.path.join('log',model_name,'current_model_' + str(idx)+'.t7')
+        if not os.path.exists(path2checkpoint):
+            continue
+        path2config = os.path.join('log',model_name,'detectiondiffusion.py')
+        if not os.path.exists(path2config):
+            continue
+        cfg = Config.fromfile(path2config)
+        os.environ["CUDA_VISIBLE_DEVICES"] = cfg.training_cfg.gpu
+        model = build_model(cfg).to(DEVICE)
 
-                print('test model of:',path2checkpoint, file=file )
-                if args.checkpoint != None:
-                    # print("Loading checkpoint....")
-                    _, exten = os.path.splitext(args.checkpoint)
-                    if exten == '.t7':
-                        model.load_state_dict(torch.load(args.checkpoint))
-                    elif exten == '.pth':
-                        check = torch.load(args.checkpoint)
-                        model.load_state_dict(check['model_state_dict'])
-                else:
-                    raise ValueError("Must specify a checkpoint path!")
+        print('test model of:',path2checkpoint)
+        if args.checkpoint != None:
+            # print("Loading checkpoint....")
+            _, exten = os.path.splitext(args.checkpoint)
+            if exten == '.t7':
+                model.load_state_dict(torch.load(args.checkpoint))
+            elif exten == '.pth':
+                check = torch.load(args.checkpoint)
+                model.load_state_dict(check['model_state_dict'])
+        else:
+            raise ValueError("Must specify a checkpoint path!")
 
-                # load test data
-                grasp_data_path = os.path.join(cfg.dataset.PATH, cfg.dataset.GRASP_DATA_NANE)
-                grasp_data = GraspDataHandlerVae(grasp_data_path)
-                loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
-                val_dataset = FFHGeneratorDataset(cfg,eval=False)
+        # load test data
+        grasp_data_path = os.path.join(cfg.dataset.PATH, cfg.dataset.GRASP_DATA_NANE)
+        grasp_data = GraspDataHandlerVae(grasp_data_path)
+        loader_dict = build_loader(cfg) #, dataset_dict)       # build the loader
+        val_dataset = FFHGeneratorDataset(cfg,eval=False)
 
-                for GUIDE_W in np.linspace(0,1,5):
-                # GUIDE_W = 0.5
-                    print("GUIDE_W ",GUIDE_W, file=file)
-                    run_maad(model)
+        # for GUIDE_W in np.linspace(0,1,5):
+        # GUIDE_W = 0.5
+            # print("GUIDE_W ",GUIDE_W, file=file)
+        run_maad(model)
